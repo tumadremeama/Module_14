@@ -7,8 +7,7 @@ from aiogram.utils import executor
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from crud_functions import initiate_db, get_all_products, populate_db
 
-
-API_TOKEN = ''
+API_TOKEN = '7240941938:AAG_4I_UweAJDqVy3SgDPjizNn3SDgB1L-4'
 
 logging.basicConfig(level=logging.INFO)
 
@@ -18,7 +17,6 @@ dp = Dispatcher(bot, storage=storage)
 
 initiate_db()
 populate_db()
-get_all_products()
 
 
 class UserState(StatesGroup):
@@ -42,41 +40,44 @@ async def start(message: types.Message):
                                                         'твоему здоровью.\nВыберите действие:', reply_markup=keyboard)
 
 
+@dp.message_handler(lambda message: message.text == 'Информация')
+async def send_info(message: types.Message):
+    info_text = (
+        "Этот бот поможет вам рассчитать вашу норму калорий на основе ваших параметров.\n"
+        "Введите ваш пол, возраст, рост и вес, и бот предоставит вам информацию о вашей норме калорий.\n"
+        "Нажмите 'Рассчитать', чтобы начать!"
+    )
+    await message.answer(info_text)
+
+
 @dp.message_handler(lambda message: message.text == 'Купить')
 async def get_buying_list(message: types.Message):
-    products = [
-        {'name': 'Vitamin C', 'description': 'Витамин ц, 60 кап. 900мг, зищита для иммунитета', 'price': 599, 'image':
-            'imagenes/picture2.jpg'},
+    products = get_all_products()
+    if products:
+        for product in products:
+            await message.answer(
+                f'Название: {product[1]} | Описание: {product[2]} | Цена: {product[3]}₽'
+            )
+            image_path = f'imagenes/picture{product[0] + 1}.jpg'
+            try:
+                with open(image_path, 'rb') as img:
+                    await message.answer_photo(img)
+            except FileNotFoundError:
+                await message.answer("Изображение не найдено.")
 
-        {'name': 'Multi-One Vitamin', 'description': 'Мултивитаминный комплекс, 30 кап. пищевая добавка',
-         'price': 1200, 'image': 'imagenes/picture3.jpg'},
+        inline_keyboard = InlineKeyboardMarkup(row_width=2)
+        for product in products:
+            button = InlineKeyboardButton(product[1], callback_data=f'buy_{product[1]}')
+            inline_keyboard.add(button)
 
-        {'name': 'B-Complex Vitamin', 'description': 'Б-Витамин комплекс, от Б1 до Б12, для энергии и антистресс',
-         'price': 956, 'image': 'imagenes/picture4.jpg'},
-
-        {'name': 'Calcium, Magnesium w. V. D3', 'description': 'Способствует здоровью костей, '
-                                                               'поддерживает функции нервов и мышц',
-         'price': 1299, 'image': 'imagenes/picture5.jpg'},
-    ]
-    for product in products:
-        await message.answer(
-            f'Название: {product["name"]} | Описание: {product["description"]} | Цена: {product["price"]}₽'
-        )
-        with open(product['image'], 'rb') as img:
-            await message.answer_photo(img)
-
-    inline_keyboard = InlineKeyboardMarkup(row_width=2)
-    for product in products:
-        button = InlineKeyboardButton(product['name'], callback_data=f'buy_{product["name"]}')
-        inline_keyboard.add(button)
-
-    await message.answer('Выберете продукт для покупки:', reply_markup=inline_keyboard)
-
+        await message.answer('Выберете продукт для покупки:', reply_markup=inline_keyboard)
+    else:
+        await message.answer("Список продуктов пуст.")
 
 @dp.callback_query_handler(lambda call: call.data.startswith('buy_'))
 async def send_confirm_message(call: types.CallbackQuery):
-    product_name = call.data.split('_', 1)[1]
-    await call.message.answer(f'Вы успешно приобрели продукт!')
+    product_id = call.data.split('_', 1)[1]
+    await call.message.answer(f'Вы успешно приобрели продукт с ID: {product_id}!')
 
 
 @dp.message_handler(lambda message: message.text == 'Рассчитать')
@@ -165,20 +166,9 @@ async def send_calories(message: types.Message, state: FSMContext):
         await message.answer('Пожалуйста, введите корректный вес (число).')
 
 
-@dp.message_handler(lambda message: message.text == 'Информация')
-async def send_info(message: types.Message):
-    info_text = (
-            "Этот бот поможет вам рассчитать вашу норму калорий на основе ваших параметров.\n"
-            "Введите ваш пол, возраст, рост и вес, и бот предоставит вам информацию о вашей норме калорий.\n"
-            "Нажмите 'Рассчитать', чтобы начать!"
-        )
-    await message.answer(info_text)
-
-
 @dp.message_handler(lambda message: True)
 async def all_messages(message: types.Message):
     await message.answer('Введите команду /start, чтобы начать общение.')
-
 
 if __name__ == '__main__':
     print('Бот запущен. Ожидание сообщений...')
